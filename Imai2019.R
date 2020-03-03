@@ -2,6 +2,10 @@
 ## Imai 2019
 # install.packages("RcppSMC")
 
+
+## Imai 2019
+# install.packages("RcppSMC")
+
 rm(list=ls())
 
 library(tidyverse)
@@ -46,9 +50,21 @@ data1 <- list(
   mode = 0 ## mode = 1にするとWBIC用 beta = (1/log(n))の事後分布生成
 )
 
-model1 <- stan_model("C:/Users/dhojo/Desktop/Imai2019_model1.stan")
+model1 <- stan_model("C:/Users/dhojo/Desktop/imai/Imai2019_model1.stan")
 fit1 <- sampling(model1, data1, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
 stan_rhat(fit1)
+
+waic_fit1 <- loo::waic(rstan::extract(fit1)$log_lik)
+waic_fit1$pointwise ## elpd(expected log predictive density) = lpd() - p_waic(汎関数分散)
+
+apply(rstan::extract(fit1)$log_lik,2,mean) ## データポイント毎 lpd
+apply(rstan::extract(fit1)$log_lik,2,var) ## データポイント毎 p_waic
+
+# ## general function variance 汎関数分散 = p_waic
+gf_variance <- function(log_lik) sum(colMeans(log_lik^2) - colMeans(log_lik)^2)
+gf_variance(rstan::extract(fit1)$log_lik) ## p_waic
+sum(apply(rstan::extract(fit1)$log_lik,2,mean)) ## lpd
+
 
 data1_wbic <- list(
   n = n,
@@ -93,80 +109,53 @@ logML_warp1
 # Interquartile range: 0.00158
 # Method: warp3
 
-
 ### Thermodynamic integration
-model_ti <- stan_model("C:/Users/dhojo/Desktop/Imai2019_model1_temp.stan")
-
-K = 11
-temperature <- rep(NA,K)
-for(j in 1:K) {
-  temperature[j] <- ((j-1)/(K-1))^(1/.3)
+## WBIC
+wbic <- function(log_lik){
+  wbic <- mean(rowSums(log_lik))
+  return(wbic)
 }
-plot(temperature)
-temperature
 
-data1_0.0 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[1]) ## prior only
-data1_0.1 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[2])
-data1_0.2 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[3])
-data1_0.3 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[4])
-data1_0.4 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[5])
-data1_0.5 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[6])
-data1_0.6 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[7])
-data1_0.7 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[8])
-data1_0.8 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[9])
-data1_0.9 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[10])
-data1_1.0 <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[11]) ## posterior
+model_ti <- stan_model("C:/Users/dhojo/Desktop/imai/Imai2019_model1_temp.stan")
 
-fit_0.0 <- sampling(model_ti, data1_0.0, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.1 <- sampling(model_ti, data1_0.1, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.2 <- sampling(model_ti, data1_0.2, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.3 <- sampling(model_ti, data1_0.3, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.4 <- sampling(model_ti, data1_0.4, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.5 <- sampling(model_ti, data1_0.5, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.6 <- sampling(model_ti, data1_0.6, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.7 <- sampling(model_ti, data1_0.7, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.8 <- sampling(model_ti, data1_0.8, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_0.9 <- sampling(model_ti, data1_0.9, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
-fit_1.0 <- sampling(model_ti, data1_1.0, iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
+K = 6
+temperature <-list_along(K)
+for(j in 1:K) {
+  temperature[[j]] <- ((j-1)/(K-1))^(1/.3)
+}
+plot(unlist(temperature))
+unlist(temperature)
 
-## mean(rowSums())するのでwbic関数使っています｡
-ll_0.0 <- wbic(rstan::extract(fit_0.0)$log_lik)
-ll_0.1 <- wbic(rstan::extract(fit_0.1)$log_lik)
-ll_0.2 <- wbic(rstan::extract(fit_0.2)$log_lik)
-ll_0.3 <- wbic(rstan::extract(fit_0.3)$log_lik)
-ll_0.4 <- wbic(rstan::extract(fit_0.4)$log_lik)
-ll_0.5 <- wbic(rstan::extract(fit_0.5)$log_lik)
-ll_0.6 <- wbic(rstan::extract(fit_0.6)$log_lik)
-ll_0.7 <- wbic(rstan::extract(fit_0.7)$log_lik)
-ll_0.8 <- wbic(rstan::extract(fit_0.8)$log_lik)
-ll_0.9 <- wbic(rstan::extract(fit_0.9)$log_lik)
-ll_1.0 <- wbic(rstan::extract(fit_1.0)$log_lik)
+data_ti <- list_along(K)
+fit_ti <- list_along(K)
+logml_ti_temp <- list_along(K)
+for(j in 1:K){
+  print(j)
+  data_ti[[j]] <- list(n = n, x = c(X[,2]), y = c(y), temperature = temperature[[j]])
+  fit_ti[[j]] <- sampling(model_ti, data_ti[[j]], iter = 2000, warmup = 1000, thin  = 1, chains = 4 , seed = 1234)
+  logml_ti_temp[[j]] <- wbic(rstan::extract(fit_ti[[j]])$log_lik)
+}
 
-ll <- data.frame(logml = c(ll_0.0,ll_0.1,ll_0.2,ll_0.3,ll_0.4,ll_0.5,ll_0.6,ll_0.7,ll_0.8,ll_0.9,ll_1.0),
-                 temperature = temperature)
+ll <- data.frame(logml = unlist(logml_ti_temp),
+                 temperature = unlist(temperature))
 ll %>% 
-  ggplot(aes(x=temperature,y=ml)) + 
+  ggplot(aes(x=temperature,y=logml)) + 
   geom_point() +
   theme_bw()
 
 
 logML_ti <- c(rep(NA,K-1))
 for(k in 2:K){
-  logML_ti[k-1] = ((temperature[k] - temperature[k-1])/2) * (ll[ll$temperature == temperature[k],"logml"]+ll[ll$temperature == temperature[k-1],"logml"])
+  logML_ti[k-1] = ((temperature[[k]] - temperature[[k-1]])/2) * (ll[ll$temperature == temperature[[k]],"logml"]+ll[ll$temperature == temperature[[k-1]],"logml"])
 }
 
 sum(logML_ti) ## log ML by TI method
-# [1] -311.1424
-
-## sim
-
-curve(-log(x),col="red")
-# for (i in seq(0.1,1.0,0.1)) {
-#   curve(dbeta(x,i,1))
-#   par(new=TRUE)
-# }
-
-
+# [1] -312.7311 K = 5
+# [1] -311.1424 K = 11
+# [1] -310.795  K = 16
+# [1] -310.6975 K = 21
+# [1] -310.6057 K = 51
+# [1] -310.5809 K = 101
 
 
 
